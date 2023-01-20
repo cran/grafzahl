@@ -1,0 +1,12 @@
+name: grafzahl
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - pandas
+    - tqdm
+    - emoji==0.6.0

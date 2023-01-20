@@ -1,0 +1,16 @@
+name: grafzahl
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch>=1.6+cpuonly
+  - pip:
+    - pandas
+    - tqdm  
+    - simpletransformers
+    - emoji==0.6.0
+
