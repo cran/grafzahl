@@ -1,15 +1,15 @@
-b9ff092709a712c8f75da1bdbf6be74e *DESCRIPTION
+2138517fc5ff91a83d487ac7b9d38dd5 *DESCRIPTION
 410c3142fc91d6f486d931315f69907f *NAMESPACE
 0a20084008ae60ac4e7024dd21aa5614 *R/lime.R
 db97b9e90796b58b6fe9bc9f533110c8 *R/misc.R
-f4cc8ec7c87e11d713864bc4c2d90596 *R/setup.R
-6c6a1b417ecfa92090b45f26a0d0d863 *R/train.R
+b0d593d0f0f882354ba89fd6367d2d75 *R/setup.R
+ee7b5ab66c0e13bdd719ca67e0c7da6c *R/train.R
 648c42292ff1400a6c8b2509221cb9ac *data/ecosent.rda
 8ca3d44bc37b7cb4d48dfaf25c93379e *data/unciviltweets.rda
-3e7d1f7f0dcebfadc06c340ba3bdb2a7 *inst/CITATION
+93734a3f617ac06c4f1010803b8caf3d *inst/CITATION
 4222c75073cbc44a68d24fc1c6b12ec9 *inst/grafzahl.yml
 d5699b80acdb5bcc4d1412bcfb21b512 *inst/grafzahl_gpu.yml
-7a28c6281cc9dff89ac7042e803c2cc5 *inst/python/st.py
+8f8b727284f58a7318768fbdd484d3b2 *inst/python/st.py
 f439fded7863bffd1fcc12dd92a8cc18 *man/detect_cuda.Rd
 cef4f977db38357ee74f96a3734c0fa5 *man/ecosent.Rd
 58e1e03a6090c5a8ac270745318e3546 *man/figures/grafzahl_logo.svg
@@ -25,3 +25,4 @@ b083de75eb2d4fbe99346eef85c3cfe6 *man/hydrate.Rd
 beba11ff45c5937ad457b9cd36367dd5 *tests/testdata/fake/tokenizer_config.json
 d53001b4a5decbd1a98b537116c4473a *tests/testthat.R
 b263f4e4cb29c6cb76e8da447010b2a6 *tests/testthat/test_grafzahl.R
+b717ba092800349e4fe077b6baa2fbdd *tests/testthat/test_setup.R
