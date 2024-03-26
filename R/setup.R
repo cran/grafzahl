@@ -1,3 +1,7 @@
+.is_windows <- function() {
+    Sys.info()[['sysname']] == "Windows"
+}
+
 .gen_conda_path <- function(envvar = "GRAFZAHL_MINICONDA_PATH", bin = FALSE) {
     if (Sys.getenv(envvar) == "") {
         main_path <- reticulate::miniconda_path()
@@ -7,6 +11,9 @@
     if (isFALSE(bin)) {
         return(main_path)
     }
+    if (.is_windows()) {
+        return(file.path(main_path, "Scripts", "conda.exe"))
+    }
     file.path(main_path, "bin", "conda")
 }
 
@@ -14,7 +21,10 @@
 ## Should err somehow
 .list_condaenvs <- function() {
     all_condaenvs <- reticulate::conda_list(conda = .gen_conda_path(bin = TRUE))
-    all_condaenvs[grepl(.gen_conda_path(), all_condaenvs$python),]$name
+    ##if (.is_windows()) {
+    return(all_condaenvs$name)
+    ##}
+    ##all_condaenvs[grepl(.gen_conda_path(), all_condaenvs$python),]$name
 }
 
 .have_conda <- function() {
@@ -41,16 +51,23 @@ detect_conda <- function() {
     return(envname)
 }
 
-.initialize_conda <- function(envname, verbose = FALSE) {
-    if (is.null(getOption('python_init'))) {
-        python_executable <- file.path(.gen_conda_path(), "envs", envname, "bin", "python")
+.initialize_python <- function(envname, verbose = FALSE) {
+    if (is.null(getOption("python_init")) && isTRUE(getOption("grafzahl.nonconda"))) {
+        options("python_init" = TRUE)
+        .say(verbose = verbose, "[Non-conda MODE] Use a non-conda Python environment. The environment is not checked.")
+        return(invisible(NULL))
+    }
+    if (is.null(getOption("python_init"))) {
+        if (.is_windows()) {
+            python_executable <- file.path(.gen_conda_path(), "envs", envname, "python.exe")
+        } else {
+            python_executable <- file.path(.gen_conda_path(), "envs", envname, "bin", "python")
+        }
         ## Until rstydio/reticulate#1308 is fixed; mask it for now
         Sys.setenv(RETICULATE_MINICONDA_PATH = .gen_conda_path())
         reticulate::use_miniconda(python_executable, required = TRUE)
-        options('python_init' = TRUE)
-        if (verbose) {
-            message("Conda environment ", envname, " is initialized.")
-        }
+        options("python_init" = TRUE)
+        .say(verbose = verbose, "Conda environment ", envname, " is initialized.")
     }
     return(invisible(NULL))
 }
@@ -65,33 +82,37 @@ detect_conda <- function() {
 #' @return boolean, whether the system is available.
 #' @export
 detect_cuda <- function() {
-    options('python_init' = NULL)
+    options("python_init" = NULL)
     if (Sys.getenv("KILL_SWITCH") == "KILL") {
         return(NA)
     }
-    envnames <- grep("^grafzahl_condaenv", .list_condaenvs(), value = TRUE)
-    if (length(envnames) == 0) {
-        stop("No conda environment found. Run `setup_grafzahl` to bootstrap one.")
-    }
-    if ("grafzahl_condaenv_cuda" %in% envnames) {
-        envname <- "grafzahl_condaenv_cuda"
+    if (is.null(getOption("grafzahl.nonconda"))) {
+        envnames <- grep("^grafzahl_condaenv", .list_condaenvs(), value = TRUE)
+        if (length(envnames) == 0) {
+            stop("No conda environment found. Run `setup_grafzahl` to bootstrap one.")
+        }
+        if ("grafzahl_condaenv_cuda" %in% envnames) {
+            envname <- "grafzahl_condaenv_cuda"
+        } else {
+            envname <- "grafzahl_condaenv"
+        }
     } else {
-        envname <- "grafzahl_condaenv"
+        envname <- NA
     }
-    .initialize_conda(envname = envname, verbose = FALSE)
+    .initialize_python(envname = envname, verbose = FALSE)
     reticulate::source_python(system.file("python", "st.py", package = "grafzahl"))
     return(py_detect_cuda())
 }
 
 .install_gpu_pytorch <- function(cuda_version) {
-    .initialize_conda(.gen_envname(cuda = TRUE))
+    .initialize_python(.gen_envname(cuda = TRUE))
     conda_executable <- .gen_conda_path(bin = TRUE)
     status <- system2(conda_executable, args = c("install", "-n", .gen_envname(cuda = TRUE), "pytorch", "pytorch-cuda", paste0("cudatoolkit=", cuda_version), "-c", "pytorch", "-c", "nvidia", "-y"))
     if (status != 0) {
         stop("Cannot set up `pytorch`.")
     }    
     python_executable <- reticulate::py_config()$python
-    status <- system2(python_executable, args = c("-m", "pip", "install", "simpletransformers"))
+    status <- system2(python_executable, args = c("-m", "pip", "install", "simpletransformers", "\"transformers\"", "\"scipy\""))
     if (status != 0) {
         stop("Cannot set up `simpletransformers`.")
     }    
@@ -138,7 +159,7 @@ setup_grafzahl <- function(cuda = FALSE, force = FALSE, cuda_version = "11.3") {
     } else {
         yml_file <- "grafzahl.yml"
     }
-    status <- system2(.gen_conda_path(bin = TRUE), args = c("env", "create",  paste0("-f=", system.file(yml_file, package = 'grafzahl')), "-n", envname, "python=3.10"))
+    status <- system2(.gen_conda_path(bin = TRUE), args = c("env", "create",  paste0("-f=", system.file(yml_file, package = 'grafzahl')), "-n", envname))
     if (status != 0) {
         stop("Cannot set up the basic conda environment.")
     }
@@ -152,5 +173,34 @@ setup_grafzahl <- function(cuda = FALSE, force = FALSE, cuda_version = "11.3") {
     if (detect_cuda() != cuda) {
         stop("Cuda wasn't configurated correctly.")
     }
-    return(invisible())
+    return(invisible(TRUE))
+}
+
+#' Set up grafzahl to be used on Google Colab or similar environments
+#'
+#' Set up grafzahl to be used on Google Colab or similar environments. This function is also useful if you do not
+#' want to use conda on a local machine, e.g. you have configurateed the required Python package.
+#'
+#' @param install logical, whether to install the required Python packages
+#' @param check logical, whether to perform a check after the setup. The check displays 1) whether CUDA can be detected, 2) whether
+#' the non-conda mode has been activated, i.e. whether the option 'grafzahl.nonconda' is `TRUE`.
+#' @param verbose, logical, whether to display messages
+#' @examples
+#' # A typical use case for Google Colab
+#' if (interactive()) {
+#'     use_nonconda()
+#' }
+#' @return TRUE (invisibly) if installation is successful.
+#' @export
+use_nonconda <- function(install = TRUE, check = TRUE, verbose = TRUE) {
+    if (install) {
+        system("python3 -m pip install simpletransformers emoji", intern = TRUE, ignore.stdout = !verbose)
+    }
+    options("grafzahl.nonconda" = TRUE)
+    if (check) {
+        .say(verbose, "Post-setup Check:")
+        .say(verbose, "CUDA detected: ", detect_cuda())
+        .say(verbose, "Non-conda mode activated: ", isTRUE(getOption("grafzahl.nonconda")))
+    }
+    return(invisible(TRUE))
 }

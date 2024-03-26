@@ -1,6 +1,6 @@
 .say <- function(verbose, ...) {
     if (isTRUE(verbose)) {
-        cat(...)
+        message(paste(..., sep = " "))
     }
     invisible()
 }
@@ -32,9 +32,7 @@
         model_type <- .infer_model_type(model_name)
     }
     model_type <- gsub("-", "", tolower(model_type))
-    if (!model_type %in% c("albert", "bert", "bertweet", "bigbird", "camembert", "deberta", "distilbert", "electra", "flaubert",
-                           "herbert", "layoutlm", "layoutlmv2", "longformer", "mpnet", "mobilebert", "rembert", "roberta", "squeezebert",
-                           "squeezebert", "xlm", "xlmroberta", "xlnet")) {
+    if (!model_type %in% grafzahl::supported_model_types) {
         stop("Invalid `model_type`.", call. = FALSE)
     }
     return(model_type)    
@@ -118,7 +116,7 @@
 #' @param train_size numeric, proportion of data in `x` and `y` to be used actually for training. The rest will be used for cross validation.
 #' @param args list, additionally parameters to be used in the underlying simple transformers
 #' @param cleanup logical, if `TRUE`, the `runs` directory generated will be removed when the training is done
-#' @param model_type a string indicating model_type of the input model. If `NULL`, it will be inferred from `model_name`. It can only be one of the following: "albert", "bert", "bertweet", "bigbird", "camembert", "deberta", "distilbert", "electra", "flaubert", "herbert", "layoutlm", "layoutlmv2", "longformer", "mpnet", "mobilebert", "rembert", "roberta", "squeezebert", "squeezebert", "xlm", "xlmroberta", "xlnet". This will be lowercased and hyphens will be removed, e.g. "XLM-RoBERTa" will be normalized to "xlmroberta".
+#' @param model_type a string indicating model_type of the input model. If `NULL`, it will be inferred from `model_name`. Supported model types are available in [supported_model_types].
 #' @param manual_seed numeric, random seed
 #' @param verbose logical, if `TRUE`, debug messages will be displayed
 #' @param ... paramters pass to [grafzahl()]
@@ -214,8 +212,11 @@ grafzahl.corpus <- function(x, y = NULL, model_name = "xlm-roberta-base",
     }
     best_model_dir <- file.path(output_dir, "best_model")
     cache_dir <- .generate_random_dir(9999, 300000)
-    .initialize_conda(envname = .gen_envname(cuda = cuda), verbose = verbose)
+    .initialize_python(envname = .gen_envname(cuda = cuda), verbose = verbose)
     reticulate::source_python(system.file("python", "st.py", package = "grafzahl"))
+    if (isTRUE(getOption("grafzahl.nonconda"))) {
+        .say(verbose, "[Non-conda MODE] If you are running this on Google Colab, you will not see the training progress.")
+    }
     py_train(data = input_data, num_labels = num_labels, output_dir = output_dir, best_model_dir = best_model_dir, cache_dir = cache_dir, model_type = model_type, model_name = model_name, num_train_epochs = num_train_epochs, train_size = train_size, manual_seed = manual_seed, regression = regression, verbose = verbose)
     if (cleanup && dir.exists(file.path("./", "runs"))) {
         unlink(file.path("./", "runs"), recursive = TRUE, force = TRUE)
@@ -276,7 +277,7 @@ predict.grafzahl <- function(object, newdata, cuda = detect_cuda(), return_raw =
     if (Sys.getenv("KILL_SWITCH") == "KILL") {
         return(NA)
     }
-    .initialize_conda(envname = .gen_envname(cuda = cuda), verbose = FALSE)
+    .initialize_python(envname = .gen_envname(cuda = cuda), verbose = FALSE)
     reticulate::source_python(system.file("python", "st.py", package = "grafzahl"))
     res <- py_predict(to_predict = newdata, model_type = object$model_type, output_dir = object$output_dir, return_raw = return_raw, use_cuda = cuda)
     if (return_raw || is.null(object$levels)) {
